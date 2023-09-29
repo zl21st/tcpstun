@@ -1,4 +1,4 @@
-package common
+package stun
 
 import (
 	"context"
@@ -26,11 +26,11 @@ func Control(network, address string, c syscall.RawConn) (err error) {
 	return err
 }
 
-func ListenTcp(laddr string) (net.Listener, error) {
+func ListenTcp(ctx context.Context, laddr string) (net.Listener, error) {
 	cfg := net.ListenConfig{
 		Control: Control,
 	}
-	return cfg.Listen(context.Background(), "tcp", laddr)
+	return cfg.Listen(ctx, "tcp", laddr)
 }
 
 func DialTcp(laddr string, raddr string, timeout int) (net.Conn, error) {
@@ -89,4 +89,16 @@ func CompareNatType(type1, type2 string) string {
 	}
 
 	return NatTypeBlocked
+}
+
+func GetOutboundIP() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP.String(), nil
 }

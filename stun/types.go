@@ -1,4 +1,4 @@
-package common
+package stun
 
 type ClientRequest struct {
 	Type      string

@@ -1,4 +1,4 @@
-package common
+package stun
 
 const (
 	NatType0       = "Open Internet"
