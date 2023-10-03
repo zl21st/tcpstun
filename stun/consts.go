@@ -1,6 +1,10 @@
 package stun
 
 const (
+	Version = "0.1.0"
+)
+
+const (
 	NatType0       = "Open Internet"
 	NatType1       = "Full Cone"
 	NatType2       = "Restricted NAT"

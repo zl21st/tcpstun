@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/zl21st/tcpstun/stun"
@@ -24,7 +25,13 @@ func main() {
 	flag.IntVar(&srv.Timeout, "O", 3, "connection timeout, in seconds")
 	flag.BoolVar(&srv.Basic, "B", false, "basic mode, do not detect NAT type")
 	debug := flag.Bool("D", false, "enable debug mode")
+	version := flag.Bool("version", false, "show version")
 	flag.Parse()
+
+	if *version {
+		fmt.Println(stun.Version)
+		return
+	}
 
 	if *debug {
 		log.SetLevel(log.DebugLevel)

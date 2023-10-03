@@ -105,7 +105,7 @@ func (c *Client) processConnection(conn net.Conn) {
 	c.natType = CompareNatType(c.natType, req.Type)
 }
 
-func (c *Client) detectNatType() {
+func (c *Client) detectNatType() error {
 	// create a rpc server on localPort
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancel = cancel
@@ -116,24 +116,34 @@ func (c *Client) detectNatType() {
 				"error": err,
 			}).Debug("listen failed")
 		}
-		return
+		return err
 	}
-	defer ln.Close()
+	if c.log != nil {
+		c.log.WithFields(logrus.Fields{
+			"localAddr": ln.Addr(),
+		}).Debug("listen success")
+	}
+	c.LocalAddr = ln.Addr().String()
 
-	for {
-		// accept a connection
-		conn, err := ln.Accept()
-		if err != nil {
-			if c.log != nil {
-				c.log.WithFields(logrus.Fields{
-					"error": err,
-				}).Debug("accept failed")
+	go func() {
+		for {
+			// accept a connection
+			conn, err := ln.Accept()
+			if err != nil {
+				if c.log != nil {
+					c.log.WithFields(logrus.Fields{
+						"error": err,
+					}).Debug("accept failed")
+				}
+				break
 			}
-			return
-		}
 
-		go c.processConnection(conn)
-	}
+			go c.processConnection(conn)
+		}
+		defer ln.Close()
+	}()
+
+	return nil
 }
 
 func (c *Client) PrintResult() {
@@ -150,7 +160,11 @@ func (c *Client) PrintResult() {
 
 func (c *Client) Run() {
 	if !c.Basic {
-		go c.detectNatType()
+		err := c.detectNatType()
+		if err != nil {
+			return
+		}
+
 		defer func() {
 			if c.cancel != nil {
 				c.cancel()

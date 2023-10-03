@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
@@ -16,7 +17,13 @@ func main() {
 	flag.StringVar(&cln.LocalAddr, "i", "", "local address, ip or ip:port")
 	flag.BoolVar(&cln.Basic, "B", false, "basic mode, do not detect NAT type")
 	flag.BoolVar(&cln.Debug, "D", false, "enable debug mode")
+	version := flag.Bool("version", false, "show version")
 	flag.Parse()
+
+	if *version {
+		fmt.Println(stun.Version)
+		return
+	}
 
 	if err := cln.Init(); err != nil {
 		log.Fatal(err)
