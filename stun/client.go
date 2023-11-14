@@ -14,18 +14,50 @@ import (
 )
 
 type Client struct {
-	LocalAddr  string
-	ServerHost string
-	ServerPort int
-	Timeout    int
+	ServerHost string // stun server host
+	ServerPort int    // stun server port
+	LocalAddr  string // local address to listen on
+	Timeout    int    // connect timeout in seconds
 	Basic      bool
 	Debug      bool
+	Verbose    bool
 	natType    string
 	mappedHost string
 	mappedPort int
 	lock       sync.Mutex
 	log        *logrus.Logger
 	cancel     context.CancelFunc
+}
+
+type NatResult struct {
+	NatType    string
+	MappedHost string
+	MappedPort int
+	LocalHost  string
+	LocalPort  int
+}
+
+func NewClient(saddr, laddr string, timeout int) (*Client, error) {
+	host, portStr, err := net.SplitHostPort(saddr)
+	if err != nil {
+		return nil, err
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, err
+	}
+
+	c := &Client{
+		ServerHost: host,
+		ServerPort: port,
+		LocalAddr:  laddr,
+		Timeout:    timeout,
+	}
+	if err := c.Init(); err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 func (c *Client) Init() error {
@@ -152,17 +184,53 @@ func (c *Client) PrintResult() {
 		hint = "(NAT Type detection not enabled in basic mode)"
 	}
 	fmt.Println("NAT Type:", c.natType, hint)
+	if c.Verbose {
+		host := strings.Split(c.LocalAddr, ":")[0]
+		port, _ := strconv.Atoi(strings.Split(c.LocalAddr, ":")[1])
+		fmt.Println("Local IP:", host)
+		fmt.Println("Local Port:", port)
+	}
 	if c.mappedHost != "" {
 		fmt.Println("External IP:", c.mappedHost)
 		fmt.Println("External Port:", c.mappedPort)
 	}
 }
 
-func (c *Client) Run() {
+func (c *Client) Discover() (*NatResult, error) {
+	if err := c.run(); err != nil {
+		return nil, err
+	}
+
+	if !strings.Contains(c.LocalAddr, ":") {
+		// should not happen
+		return nil, fmt.Errorf("invalid local address")
+	}
+
+	host, portStr, err := net.SplitHostPort(c.LocalAddr)
+	if err != nil {
+		// should not happen
+		return nil, err
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		// should not happen
+		return nil, err
+	}
+
+	return &NatResult{
+		NatType:    c.natType,
+		MappedHost: c.mappedHost,
+		MappedPort: c.mappedPort,
+		LocalHost:  host,
+		LocalPort:  port,
+	}, nil
+}
+
+func (c *Client) run() error {
 	if !c.Basic {
 		err := c.detectNatType()
 		if err != nil {
-			return
+			return err
 		}
 
 		defer func() {
@@ -179,7 +247,7 @@ func (c *Client) Run() {
 				"error": err,
 			}).Debug("dial server failed")
 		}
-		return
+		return err
 	}
 
 	// send the request
@@ -200,7 +268,7 @@ func (c *Client) Run() {
 			}).Debug("encode client request failed")
 		}
 		conn.Close()
-		return
+		return err
 	}
 	if c.log != nil {
 		c.log.WithFields(logrus.Fields{
@@ -218,7 +286,7 @@ func (c *Client) Run() {
 			}).Debug("decode server response failed")
 		}
 		conn.Close()
-		return
+		return err
 	}
 	if c.log != nil {
 		c.log.WithFields(logrus.Fields{
@@ -232,11 +300,11 @@ func (c *Client) Run() {
 	c.natType = NatType4
 	if res.ClientMappedHost == res.ClientLocalHost && res.ClientMappedPort == res.ClientLocalPort {
 		c.natType = NatType0
-		return
+		return nil
 	}
 
 	if c.Basic {
-		return
+		return nil
 	}
 
 	// wait for timeout
@@ -244,8 +312,14 @@ func (c *Client) Run() {
 		time.Sleep(time.Second)
 		c.lock.Lock()
 		if c.natType == NatType1 {
-			return
+			return nil
 		}
 		c.lock.Unlock()
 	}
+
+	return nil
+}
+
+func (c *Client) Run() {
+	c.run()
 }

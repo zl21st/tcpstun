@@ -17,6 +17,7 @@ func main() {
 	flag.StringVar(&cln.LocalAddr, "i", "", "local address, ip or ip:port")
 	flag.BoolVar(&cln.Basic, "B", false, "basic mode, do not detect NAT type")
 	flag.BoolVar(&cln.Debug, "D", false, "enable debug mode")
+	flag.BoolVar(&cln.Verbose, "V", false, "enable verbose mode")
 	version := flag.Bool("version", false, "show version")
 	flag.Parse()
 
