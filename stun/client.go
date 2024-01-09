@@ -26,7 +26,7 @@ type Client struct {
 	mappedPort int
 	lock       sync.Mutex
 	log        *logrus.Logger
-	cancel     context.CancelFunc
+	listener   net.Listener
 }
 
 type NatResult struct {
@@ -139,9 +139,7 @@ func (c *Client) processConnection(conn net.Conn) {
 
 func (c *Client) detectNatType() error {
 	// create a rpc server on localPort
-	ctx, cancel := context.WithCancel(context.Background())
-	c.cancel = cancel
-	ln, err := ListenTcp(ctx, c.LocalAddr)
+	ln, err := ListenTcp(context.Background(), c.LocalAddr)
 	if err != nil {
 		if c.log != nil {
 			c.log.WithFields(logrus.Fields{
@@ -156,6 +154,7 @@ func (c *Client) detectNatType() error {
 		}).Debug("listen success")
 	}
 	c.LocalAddr = ln.Addr().String()
+	c.listener = ln
 
 	go func() {
 		for {
@@ -172,7 +171,6 @@ func (c *Client) detectNatType() error {
 
 			go c.processConnection(conn)
 		}
-		defer ln.Close()
 	}()
 
 	return nil
@@ -234,8 +232,8 @@ func (c *Client) run() error {
 		}
 
 		defer func() {
-			if c.cancel != nil {
-				c.cancel()
+			if c.listener != nil {
+				c.listener.Close()
 			}
 		}()
 	}
